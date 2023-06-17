@@ -1,0 +1,218 @@
+public class GLC {
+  constructor() {
+    this.producoes = [];
+  }
+
+  adicionarProducao(cabeca, corpo) {
+    this.producoes.push({ cabeca, corpo });
+  }
+}
+
+function transformarGLCparaFNG(glc) {
+  glc = eliminarProducoesVazias(glc);
+  glc = eliminarProducoesUnitarias(glc);
+  glc = converterProducoes(glc);
+  glc = criarSimbolosNaoTerminais(glc);
+
+  return glc;
+}
+
+function eliminarProducoesVazias(glc) {
+  let vazios = [];
+  let producoesSemVazios = [];
+
+  for (let i = 0; i < glc.producoes.length; i++) {
+    let producao = glc.producoes[i];
+
+    if (producao.corpo === "λ") {
+      vazios.push(producao.cabeca);
+    } else {
+      producoesSemVazios.push(producao);
+    }
+  }
+
+  let novasProducoes = [];
+
+  for (let i = 0; i < producoesSemVazios.length; i++) {
+    let producao = producoesSemVazios[i];
+    let corpo = producao.corpo;
+
+    for (let j = 0; j < vazios.length; j++) {
+      let vazio = vazios[j];
+      let indices = encontrarIndices(corpo, vazio);
+
+      for (let k = 0; k < indices.length; k++) {
+        let index = indices[k];
+        let novoCorpo = corpo.slice(0, index) + corpo.slice(index + vazio.length);
+        let novaProducao = { cabeca: producao.cabeca, corpo: novoCorpo };
+
+        if (!producaoJaExiste(novasProducoes, novaProducao)) {
+          novasProducoes.push(novaProducao);
+        }
+      }
+    }
+  }
+
+  return { producoes: producoesSemVazios.concat(novasProducoes) };
+}
+
+function encontrarIndices(texto, padrao) {
+  let indices = [];
+  let index = texto.indexOf(padrao);
+
+  while (index !== -1) {
+    indices.push(index);
+    index = texto.indexOf(padrao, index + 1);
+  }
+
+  return indices;
+}
+
+function eliminarProducoesUnitarias(glc) {
+  let producoesUnitarias = [];
+
+  for (let i = 0; i < glc.producoes.length; i++) {
+    let producao = glc.producoes[i];
+
+    if (ehProducaoUnitaria(producao)) {
+      producoesUnitarias.push(producao);
+    }
+  }
+
+  let producoesRestantes = glc.producoes;
+
+  while (producoesUnitarias.length > 0) {
+    let producaoUnitaria = producoesUnitarias.shift();
+
+    for (let i = 0; i < producoesRestantes.length; i++) {
+      let producao = producoesRestantes[i];
+
+      if (producao.cabeca === producaoUnitaria.corpo) {
+        let novaProducao = { cabeca: producaoUnitaria.cabeca, corpo: producao.corpo };
+
+        if (!producaoJaExiste(producoesRestantes, novaProducao)) {
+          producoesRestantes.push(novaProducao);
+          producoesUnitarias.push(novaProducao);
+        }
+      }
+    }
+  }
+
+  return { producoes: producoesRestantes.filter((producao) => !ehProducaoUnitaria(producao)) };
+}
+
+function ehProducaoUnitaria(producao) {
+  return producao.corpo.length === 1 && !ehNaoTerminal(producao.corpo);
+}
+
+function converterProducoes(glc) {
+  let novasProducoes = [];
+
+  for (let i = 0; i < glc.producoes.length; i++) {
+    let producao = glc.producoes[i];
+
+    if (producao.corpo.length > 1) {
+      let novoCorpo = producao.corpo[0];
+      let naoTerminal = producao.corpo[1];
+
+      for (let j = 2; j < producao.corpo.length; j++) {
+        if (ehNaoTerminal(producao.corpo[j])) {
+          naoTerminal = producao.corpo[j];
+        } else {
+          novoCorpo += producao.corpo[j] + naoTerminal;
+          naoTerminal = "";
+        }
+      }
+
+      let novaProducao = { cabeca: producao.cabeca, corpo: novoCorpo };
+
+      if (!producaoJaExiste(novasProducoes, novaProducao)) {
+        novasProducoes.push(novaProducao);
+      }
+    }
+  }
+
+  return { producoes: glc.producoes.concat(novasProducoes) };
+}
+
+function criarSimbolosNaoTerminais(glc) {
+  let terminais = [];
+  let naoTerminais = [];
+
+  for (let i = 0; i < glc.producoes.length; i++) {
+    let producao = glc.producoes[i];
+
+    if (!naoTerminais.includes(producao.cabeca)) {
+      naoTerminais.push(producao.cabeca);
+    }
+
+    for (let j = 0; j < producao.corpo.length; j++) {
+      let simbolo = producao.corpo[j];
+
+      if (!ehNaoTerminal(simbolo) && !terminais.includes(simbolo)) {
+        terminais.push(simbolo);
+      }
+    }
+  }
+
+  let novasProducoes = [];
+
+  for (let i = 0; i < terminais.length; i++) {
+    let terminal = terminais[i];
+    let novoNaoTerminal = encontrarNovoNaoTerminal(naoTerminais);
+
+    novasProducoes.push({ cabeca: novoNaoTerminal, corpo: terminal });
+
+    for (let j = 0; j < glc.producoes.length; j++) {
+      let producao = glc.producoes[j];
+      producao.corpo = producao.corpo.replace(terminal, novoNaoTerminal);
+    }
+
+    naoTerminais.push(novoNaoTerminal);
+  }
+
+  return { producoes: glc.producoes.concat(novasProducoes) };
+}
+
+function ehNaoTerminal(simbolo) {
+  return /[A-Z]/.test(simbolo);
+}
+
+function producaoJaExiste(producoes, producao) {
+  for (let i = 0; i < producoes.length; i++) {
+    let prod = producoes[i];
+
+    if (prod.cabeca === producao.cabeca && prod.corpo === producao.corpo) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function encontrarNovoNaoTerminal(naoTerminais) {
+  let index = 1;
+  let novoNaoTerminal = "A" + index;
+
+  while (naoTerminais.includes(novoNaoTerminal)) {
+    index++;
+    novoNaoTerminal = "A" + index;
+  }
+
+  return novoNaoTerminal;
+}
+
+// Criação da GLC
+let glc = new GLC();
+glc.adicionarProducao("S", "aAd");
+glc.adicionarProducao("S", "A");
+glc.adicionarProducao("A", "Bc");
+glc.adicionarProducao("A", "λ");
+glc.adicionarProducao("B", "Ac");
+glc.adicionarProducao("B", "a");
+
+// Transformação da GLC para FNG
+let glcFNG = transformarGLCparaFNG(glc);
+
+// Exibição do resultado
+console.log(glcFNG);
